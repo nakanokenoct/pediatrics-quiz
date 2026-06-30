@@ -7057,6 +7057,7 @@ function renderManage() {
       <div class="q-item-a">→ ${escHtml(q.a.substring(0, 60))}${q.a.length > 60 ? '…' : ''}</div>
       <div class="q-item-actions">
         <button class="btn btn-outline btn-sm" onclick="openEdit(${realIdx})">✏️ 編集</button>
+        <button class="btn btn-sm" style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;" onclick="openReport(${realIdx})">🚨 報告</button>
         <button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger);" onclick="deleteQuestion(${realIdx})">🗑 削除</button>
       </div>`;
     list.appendChild(div);
@@ -7298,12 +7299,11 @@ function closeEditModal(e) {
 }
 
 // ─── REPORT (不備報告) ───
-function reportCurrentQuestion() {
-  if (!quizQueue || quizIdx < 0) return;
-  const q = quizQueue[quizIdx];
-  const globalIdx = questions.indexOf(q);
+function openReportModal(idx) {
+  const q = questions[idx];
+  if (!q) return;
 
-  document.getElementById('reportIdx').value = globalIdx;
+  document.getElementById('reportIdx').value = idx;
 
   // 問題情報
   const cats = CATEGORIES.find(c => c.id === q.cat);
@@ -7314,12 +7314,24 @@ function reportCurrentQuestion() {
   // 問題文（選択肢含む）
   document.getElementById('reportQText').textContent = q.q || '（問題文なし）';
 
-  // 前回のプレビューを隠す
+  // リセット
   document.getElementById('reportPreviewArea').style.display = 'none';
   document.getElementById('reportComment').value = '';
+  document.getElementById('reportType').value = '解答が間違っている';
   document.getElementById('copyReportBtn').textContent = '📋 報告内容をコピー';
 
   document.getElementById('reportModal').classList.add('show');
+}
+
+function openReport(idx) {
+  openReportModal(idx);
+}
+
+function reportCurrentQuestion() {
+  if (!quizQueue || quizIdx < 0) return;
+  const q = quizQueue[quizIdx];
+  const globalIdx = questions.indexOf(q);
+  openReportModal(globalIdx);
 }
 
 function closeReportModal(e) {
