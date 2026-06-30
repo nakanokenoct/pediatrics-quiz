@@ -730,6 +730,7 @@
       <div class="quiz-cat-badge" id="quizCatBadge">発達</div>
       <div style="display:flex;gap:6px;">
         <button class="btn btn-gray btn-sm" onclick="editCurrentQuestion()" title="この問題を編集" style="padding:6px 8px;font-size:13px;">✏️</button>
+        <button class="btn btn-gray btn-sm" onclick="reportCurrentQuestion()" title="不備を報告" style="padding:6px 8px;font-size:13px;">🚨</button>
         <button class="btn btn-gray btn-sm" onclick="endQuiz()">終了</button>
       </div>
     </div>
@@ -919,6 +920,56 @@
 
     <button class="btn btn-primary btn-full" onclick="saveEdit()">💾 保存する</button>
     <button class="btn btn-gray btn-full" onclick="closeEditModal()" style="margin-top:8px;">キャンセル</button>
+  </div>
+</div>
+
+<!-- Report Modal -->
+<div class="modal-overlay" id="reportModal" onclick="closeReportModal(event)">
+  <div class="modal" style="max-height:92vh;overflow-y:auto;">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🚨 不備を報告</div>
+    <input type="hidden" id="reportIdx">
+
+    <!-- 問題情報（読み取り専用） -->
+    <div class="form-group">
+      <label class="form-label">対象問題</label>
+      <div id="reportQInfo" style="padding:10px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);border:1px solid var(--gray-200);line-height:1.6;"></div>
+    </div>
+
+    <!-- 現在の問題文（読み取り専用） -->
+    <div class="form-group">
+      <label class="form-label">現在の問題文</label>
+      <div id="reportQText" style="padding:10px;background:var(--gray-50);border-radius:8px;font-size:12px;color:var(--gray-700);border:1px solid var(--gray-200);line-height:1.7;white-space:pre-wrap;word-break:break-all;max-height:180px;overflow-y:auto;"></div>
+    </div>
+
+    <!-- 不備の種類 -->
+    <div class="form-group">
+      <label class="form-label">不備の種類</label>
+      <select class="form-select" id="reportType">
+        <option value="解答が間違っている">解答が間違っている</option>
+        <option value="選択肢に誤りがある">選択肢に誤りがある</option>
+        <option value="問題文が不明瞭">問題文が不明瞭・欠損している</option>
+        <option value="カテゴリが違う">カテゴリが違う</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+
+    <!-- 修正案・コメント -->
+    <div class="form-group">
+      <label class="form-label">修正案・コメント</label>
+      <textarea class="form-textarea" id="reportComment" rows="4"
+        style="min-height:80px;"
+        placeholder="例: 正解はaではなくbが正しい。理由：〇〇ガイドライン2023では…"></textarea>
+    </div>
+
+    <!-- コピーされたテキストのプレビュー -->
+    <div id="reportPreviewArea" style="display:none;margin-bottom:12px;">
+      <label class="form-label">コピーされる内容</label>
+      <div id="reportPreviewText" style="padding:10px;background:#f0f9ff;border-radius:8px;font-size:12px;color:#1e40af;border:1px solid #bfdbfe;line-height:1.7;white-space:pre-wrap;word-break:break-all;"></div>
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="copyReport()" id="copyReportBtn">📋 報告内容をコピー</button>
+    <button class="btn btn-gray btn-full" onclick="closeReportModal()" style="margin-top:8px;">閉じる</button>
   </div>
 </div>
 
@@ -7244,6 +7295,97 @@ function closeEditModal(e) {
   if (typeof quizQueue !== 'undefined' && quizQueue && quizIdx >= 0) {
     showQuestion();
   }
+}
+
+// ─── REPORT (不備報告) ───
+function reportCurrentQuestion() {
+  if (!quizQueue || quizIdx < 0) return;
+  const q = quizQueue[quizIdx];
+  const globalIdx = questions.indexOf(q);
+
+  document.getElementById('reportIdx').value = globalIdx;
+
+  // 問題情報
+  const cats = CATEGORIES.find(c => c.id === q.cat);
+  const catLabel = cats ? cats.icon + ' ' + cats.name : q.cat;
+  document.getElementById('reportQInfo').textContent =
+    '📅 ' + (q.year || '不明') + '年　No.' + (q.num || '?') + '　' + catLabel;
+
+  // 問題文（選択肢含む）
+  document.getElementById('reportQText').textContent = q.q || '（問題文なし）';
+
+  // 前回のプレビューを隠す
+  document.getElementById('reportPreviewArea').style.display = 'none';
+  document.getElementById('reportComment').value = '';
+  document.getElementById('copyReportBtn').textContent = '📋 報告内容をコピー';
+
+  document.getElementById('reportModal').classList.add('show');
+}
+
+function closeReportModal(e) {
+  if (e && e.target !== document.getElementById('reportModal')) return;
+  document.getElementById('reportModal').classList.remove('show');
+}
+
+function copyReport() {
+  const idx = document.getElementById('reportIdx').value;
+  const q = questions[idx];
+  if (!q) return;
+
+  const type = document.getElementById('reportType').value;
+  const comment = document.getElementById('reportComment').value.trim();
+  const cats = CATEGORIES.find(c => c.id === q.cat);
+  const catLabel = cats ? cats.name : q.cat;
+
+  const text = [
+    '【小児科専門医試験クイズ 不備報告】',
+    '',
+    '■ 対象問題',
+    '　年度: ' + (q.year || '不明') + '年',
+    '　問題番号: No.' + (q.num || '?'),
+    '　カテゴリ: ' + catLabel,
+    '',
+    '■ 不備の種類',
+    '　' + type,
+    '',
+    '■ 現在の問題文',
+    (q.q || '（なし）').replace(/^/gm, '　'),
+    '',
+    '■ 現在の解答',
+    '　' + (q.answer || '（なし）'),
+    '',
+    '■ 修正案・コメント',
+    comment ? comment.replace(/^/gm, '　') : '　（コメントなし）',
+    '',
+    '─────────────────',
+    '送信日時: ' + new Date().toLocaleString('ja-JP'),
+  ].join('\n');
+
+  // プレビュー表示
+  document.getElementById('reportPreviewText').textContent = text;
+  document.getElementById('reportPreviewArea').style.display = 'block';
+
+  // クリップボードにコピー
+  navigator.clipboard.writeText(text).then(() => {
+    document.getElementById('copyReportBtn').textContent = '✅ コピーしました！';
+    showToast('クリップボードにコピーしました');
+    setTimeout(() => {
+      document.getElementById('copyReportBtn').textContent = '📋 報告内容をコピー';
+    }, 3000);
+  }).catch(() => {
+    // フォールバック: テキストエリアを使う
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    document.getElementById('copyReportBtn').textContent = '✅ コピーしました！';
+    showToast('クリップボードにコピーしました');
+    setTimeout(() => {
+      document.getElementById('copyReportBtn').textContent = '📋 報告内容をコピー';
+    }, 3000);
+  });
 }
 
 // ─── HISTORY ───
