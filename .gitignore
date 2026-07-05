@@ -1,0 +1,13 @@
+# 公開に含めない作業ファイル
+*.py
+*.sh
+*.docx
+review_patch.json
+questions_data.json
+CLAUDE.md
+
+# 公開するファイル（questions.json を含めるため *.json 全体は無視しない）
+!index.html
+!pediatrics_quiz.html
+!admin.html
+!questions.json
