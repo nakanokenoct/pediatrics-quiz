@@ -674,7 +674,7 @@
 <div class="page active" id="page-home">
   <div class="intro-banner">
     <h2>📚 小児科専門医試験対策</h2>
-    <p>2015〜2025年の過去問 682問収録！カテゴリを選んでクイズに挑戦。自分で問題の追加もできます。</p>
+    <p>2015〜2025年の過去問 682問収録！年度やカテゴリを選んでクイズに挑戦。年度を選ぶとその年の全問を本番形式で通し演習できます。</p>
   </div>
 
   <div class="stats-grid">
@@ -691,6 +691,9 @@
       <div class="stat-label">累計正答率</div>
     </div>
   </div>
+
+  <div class="section-header">年度で絞る<span id="yearClear" style="font-size:11px;font-weight:400;color:var(--primary);float:right;cursor:pointer;display:none;" onclick="clearYears()">クリア</span></div>
+  <div id="yearList" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;"></div>
 
   <div class="section-header">カテゴリ選択</div>
   <div class="category-list" id="categoryList"></div>
@@ -1002,6 +1005,7 @@ let quizIdx = 0;
 let quizCorrect = 0;
 let quizWrong = 0;
 let selectedCats = new Set();
+let selectedYears = new Set();
 let quizMode = 'sequential';
 let manageCatFilter = 'all';
 
@@ -1096,11 +1100,33 @@ function renderHome() {
   const todayRate = todayTotal > 0 ? Math.round(stats.todayCorrect / todayTotal * 100) + '%' : '—';
   document.getElementById('todayRate').textContent = todayRate;
 
+  // Year chips
+  const yearContainer = document.getElementById('yearList');
+  if (yearContainer) {
+    yearContainer.innerHTML = '';
+    const years = [...new Set(questions.map(q => q.year).filter(Boolean))].sort();
+    years.forEach(y => {
+      const yc = questions.filter(q => q.year === y).length;
+      const sel = selectedYears.has(y);
+      const chip = document.createElement('div');
+      chip.textContent = y + '年 (' + yc + ')';
+      chip.style.cssText = 'padding:7px 12px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;border:1.5px solid ' +
+        (sel ? 'var(--primary)' : 'var(--gray-200)') + ';background:' +
+        (sel ? 'var(--primary-light)' : '#fff') + ';color:' +
+        (sel ? 'var(--primary)' : 'var(--gray-600)') + ';';
+      chip.onclick = () => toggleYear(y);
+      yearContainer.appendChild(chip);
+    });
+    document.getElementById('yearClear').style.display = selectedYears.size ? 'inline' : 'none';
+  }
+
   // Category list
   const container = document.getElementById('categoryList');
   container.innerHTML = '';
   CATEGORIES.forEach(cat => {
-    const count = questions.filter(q => q.cat === cat.id).length;
+    // 年度で絞り込んだ場合はその年度内のカテゴリ件数を表示
+    const inYear = q => selectedYears.size === 0 || selectedYears.has(q.year);
+    const count = questions.filter(q => q.cat === cat.id && inYear(q)).length;
     if (count === 0) return;
     const isSelected = selectedCats.has(cat.id);
     const div = document.createElement('div');
@@ -1125,6 +1151,17 @@ function toggleCategory(id) {
   renderHome();
 }
 
+function toggleYear(y) {
+  if (selectedYears.has(y)) selectedYears.delete(y);
+  else selectedYears.add(y);
+  renderHome();
+}
+
+function clearYears() {
+  selectedYears.clear();
+  renderHome();
+}
+
 function selectMode(mode) {
   quizMode = mode;
   document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('selected'));
@@ -1134,8 +1171,9 @@ function selectMode(mode) {
 // ─── QUIZ ───
 function startQuiz() {
   let pool = [...questions];
+  if (selectedYears.size > 0) pool = pool.filter(q => selectedYears.has(q.year));
   if (selectedCats.size > 0) pool = pool.filter(q => selectedCats.has(q.cat));
-  if (pool.length === 0) { showToast('選択したカテゴリに問題がありません'); return; }
+  if (pool.length === 0) { showToast('選択した条件に該当する問題がありません'); return; }
 
   if (quizMode === 'wrong') {
     const wrongPool = pool.filter(q => stats.wrongIds.has(q.id));
@@ -1151,7 +1189,9 @@ function startQuiz() {
     pool = pool.sort(() => Math.random() - 0.5);
   }
 
-  quizQueue = pool.slice(0, 20); // max 20 per session
+  // 年度別演習では、その年度の全問を通しで出題（本番形式）。それ以外は1回20問まで。
+  const cap = selectedYears.size > 0 ? pool.length : 20;
+  quizQueue = pool.slice(0, cap);
   quizIdx = 0;
   quizCorrect = 0;
   quizWrong = 0;
